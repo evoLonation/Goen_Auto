@@ -3,7 +3,6 @@ package service
 import (
 	"Auto/entity"
 	"Auto/entityManager"
-	"errors"
 	"time"
 )
 
@@ -11,7 +10,13 @@ var CurrentSaleLine entity.SalesLineItem
 var CurrentSale entity.Sale
 var CurrentPaymentMethod entity.PaymentMethod
 
-func MakeNewSale() (bool, error) {
+func MakeNewSale() (result bool, retErr error) {
+	defer func() {
+		if err := entityManager.Saver.Save(); err != nil {
+			retErr = NewErrPostCondition(err)
+			return
+		}
+	}()
 
 	//precondition
 	if !((CurrentCashDesk == nil) == false &&
@@ -19,7 +24,8 @@ func MakeNewSale() (bool, error) {
 		((CurrentSale == nil) == true ||
 			((CurrentSale == nil) == false &&
 				CurrentSale.GetIsComplete() == true))) {
-		return false, errors.New("pre condition dissatisfy")
+		retErr = ErrPreConditionUnsatisfied
+		return
 	}
 
 	// post condition
@@ -30,11 +36,8 @@ func MakeNewSale() (bool, error) {
 	s.SetIsReadytoPay(false)
 	entity.SaleManager.AddInAllInstance(s)
 	CurrentSale = s
-
-	if err := entityManager.Saver.Save(); err != nil {
-		return false, nil
-	}
-	return true, nil
+	result = true
+	return
 }
 
 func EnterItem(barcode int, quantity int) (bool, error) {
@@ -49,7 +52,7 @@ func EnterItem(barcode int, quantity int) (bool, error) {
 		CurrentSale.GetIsComplete() == false &&
 		(item == nil) == false &&
 		item.GetStockNumber() > 0) {
-		return false, errors.New("pre condition dissatisfy")
+		return false, ErrPreConditionUnsatisfied
 	}
 
 	// post condition
@@ -58,12 +61,13 @@ func EnterItem(barcode int, quantity int) (bool, error) {
 	sli.SetBelongedSale(CurrentSale)
 	CurrentSale.AddContainedSalesLine(sli)
 	sli.SetQuantity(quantity)
+	sli.SetBelongedItem(item)
 	item.SetStockNumber(item.GetStockNumber() - quantity)
 	sli.SetSubamount(item.GetPrice() * float64(quantity))
 	entity.SalesLineItemManager.AddInAllInstance(sli)
 
 	if err := entityManager.Saver.Save(); err != nil {
-		return false, nil
+		return false, NewErrPostCondition(err)
 	}
 	return true, nil
 }
@@ -71,7 +75,7 @@ func EnterItem(barcode int, quantity int) (bool, error) {
 func EndSale() (float64, error) {
 
 	// definition
-	sls := CurrentSale.GetContainedSalesLine()
+	var sls []entity.SalesLineItem = CurrentSale.GetContainedSalesLine()
 	var sub []float64
 	for _, sl := range sls {
 		sub = append(sub, sl.GetSubamount())
@@ -81,7 +85,7 @@ func EndSale() (float64, error) {
 	if !((CurrentSale == nil) == false &&
 		CurrentSale.GetIsComplete() == false &&
 		CurrentSale.GetIsReadytoPay() == false) {
-		return 0, errors.New("pre condition dissatisfy")
+		return 0, ErrPreConditionUnsatisfied
 	}
 
 	// post condition
@@ -89,9 +93,13 @@ func EndSale() (float64, error) {
 	CurrentSale.SetIsReadytoPay(true)
 
 	if err := entityManager.Saver.Save(); err != nil {
-		return 0, nil
+		return 0, NewErrPostCondition(err)
 	}
 	return CurrentSale.GetAmount(), nil
+}
+func Collect[FT any, ET any](e ET, field string) []FT {
+
+	return []FT{}
 }
 
 type Addable interface {
@@ -112,7 +120,7 @@ func MakeCashPayment(amount float64) (bool, error) {
 		CurrentSale.GetIsComplete() == false &&
 		CurrentSale.GetIsReadytoPay() == true &&
 		amount >= CurrentSale.GetAmount()) {
-		return false, errors.New("pre condition dissatisfy")
+		return false, ErrPreConditionUnsatisfied
 	}
 
 	// post condition
@@ -129,7 +137,7 @@ func MakeCashPayment(amount float64) (bool, error) {
 	entity.CashPaymentManager.AddInAllInstance(cp)
 
 	if err := entityManager.Saver.Save(); err != nil {
-		return false, nil
+		return false, NewErrPostCondition(err)
 	}
 	return true, nil
 }
@@ -139,7 +147,7 @@ func MakeCardPayment(cardAccountNumber string, expiryDate time.Time, fee float64
 	if !((CurrentSale == nil) == false &&
 		CurrentSale.GetIsComplete() == false &&
 		CurrentSale.GetIsReadytoPay() == true) {
-		return false, errors.New("pre condition dissatisfy")
+		return false, ErrPreConditionUnsatisfied
 	}
 
 	// post condition
@@ -157,7 +165,7 @@ func MakeCardPayment(cardAccountNumber string, expiryDate time.Time, fee float64
 	CurrentSale.SetTime(time.Now())
 
 	if err := entityManager.Saver.Save(); err != nil {
-		return false, nil
+		return false, NewErrPostCondition(err)
 	}
 	return true, nil
 }
