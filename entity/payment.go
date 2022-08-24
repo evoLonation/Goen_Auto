@@ -1,29 +1,30 @@
 package entity
 
-import(
-"Auto/entityManager"
+import (
+	"Auto/entityManager"
 )
+
 var paymentManager entityManager.ManagerForEntity[Payment]
-var PaymentManager entityManager.ManagerForOther[Payment]
+var PaymentManager entityManager.InheritManagerForOther[Payment]
 
-
-type Payment interface{
-	GetAmountTendered () float64 
-	GetBelongedSale () Sale 
-	SetAmountTendered (amountTendered float64) 
-	SetBelongedSale (sale Sale) 
+type Payment interface {
+	GetAmountTendered() float64
+	GetBelongedSale() Sale
+	SetAmountTendered(amountTendered float64)
+	SetBelongedSale(sale Sale)
 }
 
-type PaymentEntity struct{
+type PaymentEntity struct {
 	entityManager.BasicEntity
-	
-	AmountTendered float64 `db:"amount_tendered"`
-	BelongedSaleGoenId *int `db:"belonged_sale_goen_id"`
+
+	AmountTendered     float64 `db:"amount_tendered"`
+	BelongedSaleGoenId *int    `db:"belonged_sale_goen_id"`
 }
-func (p *PaymentEntity) GetAmountTendered () float64  {
-	return p.AmountTendered 
+
+func (p *PaymentEntity) GetAmountTendered() float64 {
+	return p.AmountTendered
 }
-func (p *PaymentEntity) GetBelongedSale () Sale  {
+func (p *PaymentEntity) GetBelongedSale() Sale {
 	if p.BelongedSaleGoenId == nil {
 		return nil
 	} else {
@@ -31,11 +32,11 @@ func (p *PaymentEntity) GetBelongedSale () Sale  {
 		return ret
 	}
 }
-func (p *PaymentEntity) SetAmountTendered (amountTendered float64)  {
-	p.AmountTendered = amountTendered 
+func (p *PaymentEntity) SetAmountTendered(amountTendered float64) {
+	p.AmountTendered = amountTendered
 	p.AddBasicFieldChange("amount_tendered")
 }
-func (p *PaymentEntity) SetBelongedSale (sale Sale)  {
+func (p *PaymentEntity) SetBelongedSale(sale Sale) {
 	id := saleManager.GetGoenId(sale)
 	p.BelongedSaleGoenId = &id
 	p.AddAssFieldChange("belonged_sale_goen_id")
